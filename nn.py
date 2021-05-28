@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 # Dense layer
@@ -776,6 +777,11 @@ class Model:
         self.layers = []
         # Softmax classifier's output object
         self.softmax_classifier_output = None
+        # Create plotting variables
+        self.t_losses = []
+        self.t_accuracies = []
+        self.v_losses = []
+        self.v_accuracies = []
 
     # Add objects to the model
     def add(self, layer):
@@ -857,7 +863,7 @@ class Model:
 
     # Train the model
     def train(self, X, y, *, epochs=1, batch_size=None,
-              print_every=1, validation_data=None):
+              print_every=1, validation_data=None, p=True):
 
         # Initialize accuracy object
         self.accuracy.init(y)
@@ -879,7 +885,8 @@ class Model:
         for epoch in range(1, epochs+1):
 
             # Print epoch number
-#             print(f'epoch: {epoch}')
+            if p:
+                print(f'epoch: {epoch}')
 
             # Reset accumulated values in loss and accuracy objects
             self.loss.new_pass()
@@ -925,13 +932,17 @@ class Model:
 
 
                 # Print a summary
-#                 if not step % print_every or step == train_steps - 1:
-#                     print(f'step: {step}, ' +
-#                           f'acc: {accuracy:.3f}, ' +
-#                           f'loss: {loss:.3f} (' +
-#                           f'data_loss: {data_loss:.3f}, ' +
-#                           f'reg_loss: {regularization_loss:.3f}), ' +
-#                           f'lr: {self.optimizer.current_learning_rate}')
+                if (not step % print_every or step == train_steps - 1) and p:
+                    print(f'step: {step}, ' +
+                          f'acc: {accuracy:.3f}, ' +
+                          f'loss: {loss:.3f} (' +
+                          f'data_loss: {data_loss:.3f}, ' +
+                          f'reg_loss: {regularization_loss:.3f}), ' +
+                          f'lr: {self.optimizer.current_learning_rate}')
+                
+                self.t_accuracies.append(accuracy)
+                self.t_losses.append(loss)
+                
 
             # Get and print epoch loss and accuracy
             epoch_data_loss, epoch_regularization_loss = \
@@ -939,23 +950,24 @@ class Model:
                     include_regularization=True)
             epoch_loss = epoch_data_loss + epoch_regularization_loss
             epoch_accuracy = self.accuracy.calculate_accumulated()
-
-#             print(f'training, ' +
-#                   f'acc: {epoch_accuracy:.3f}, ' +
-#                   f'loss: {epoch_loss:.3f} (' +
-#                   f'data_loss: {epoch_data_loss:.3f}, ' +
-#                   f'reg_loss: {epoch_regularization_loss:.3f}), ' +
-#                   f'lr: {self.optimizer.current_learning_rate}')
+            
+            if p:
+                print(f'training, ' +
+                      f'acc: {epoch_accuracy:.3f}, ' +
+                      f'loss: {epoch_loss:.3f} (' +
+                      f'data_loss: {epoch_data_loss:.3f}, ' +
+                      f'reg_loss: {epoch_regularization_loss:.3f}), ' +
+                      f'lr: {self.optimizer.current_learning_rate}')
 
             # If there is the validation data
             if validation_data is not None:
 
                 # Evaluate the model:
-                self.evaluate(*validation_data,
+                self.evaluate(*validation_data, p=p,
                               batch_size=batch_size)
 
     # Evaluates the model using passed-in dataset
-    def evaluate(self, X_val, y_val, *, batch_size=None):
+    def evaluate(self, X_val, y_val, p=True, *, batch_size=None):
 
         # Default value if batch size is not being set
         validation_steps = 1
@@ -1009,10 +1021,49 @@ class Model:
         validation_accuracy = self.accuracy.calculate_accumulated()
 
         # Print a summary
-#         print(f'validation, ' +
-#               f'acc: {validation_accuracy:.3f}, ' +
-#               f'loss: {validation_loss:.3f}')
+        if p:
+            print(f'validation, ' +
+                  f'acc: {validation_accuracy:.3f}, ' +
+                  f'loss: {validation_loss:.3f}')
+
+        self.v_accuracies.append(validation_accuracy)
+        self.v_losses.append(validation_loss)
+
         return validation_loss
+    
+    def plot(self):
+        fig, axs = plt.subplots(2)
+
+        ax1 = axs[0]
+        color = 'tab:red'
+        ax1.set_xlabel('training steps')
+        ax1.set_ylabel('loss', color=color)
+        ax1.plot(range(len(self.t_losses)), self.t_losses, color=color)
+        ax1.tick_params(axis='y', labelcolor=color)
+
+        ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+        color = 'tab:blue'
+        ax2.set_ylabel('accuracy', color=color)  # we already handled the x-label with ax1
+        ax2.plot(range(len(self.t_accuracies)), self.t_accuracies, color=color)
+        ax2.tick_params(axis='y', labelcolor=color)
+
+        ax1 = axs[1]
+        color = 'tab:red'
+        ax1.set_xlabel('epochs')
+        ax1.set_ylabel('loss', color=color)
+        ax1.plot(range(len(self.v_losses)), self.v_losses, color=color)
+        ax1.tick_params(axis='y', labelcolor=color)
+
+        ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+        color = 'tab:blue'
+        ax2.set_ylabel('accuracy', color=color)  # we already handled the x-label with ax1
+        ax2.plot(range(len(self.v_accuracies)), self.v_accuracies, color=color)
+        ax2.tick_params(axis='y', labelcolor=color)
+
+        fig.tight_layout()  # otherwise the right y-label is slightly clipped
+        plt.show()
 
     # Predicts on the samples
     def predict(self, X, *, batch_size=None):
